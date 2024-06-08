@@ -55,7 +55,7 @@ class Louvain:
             out_nodes, in_nodes = self.find_node_neighbors(self.A, node)
             cluster['neighbors'] = {neighbor: {node} for neighbor in out_nodes.union(in_nodes)}
 
-    def louvain_clustering(self):
+    def run(self):
         """
         """
         clusters = self.clusters

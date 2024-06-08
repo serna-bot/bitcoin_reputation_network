@@ -59,4 +59,36 @@ def dice_sim(G):
     return np.array(G.similarity_dice())
 
 def resource_allocation_sim(A):
-    pass
+    """
+    """
+    N = A.shape[0]
+    similarity_matrix = np.zeros((N, N))
+
+    for node1 in range(N):
+        for node2 in range(node1 + 1, N):
+            # Find common neighbors
+            out_neighbors1 = set(np.where(A[node1, :] != 0)[0])
+            in_neighbors1 = set(np.where(A[:, node1] != 0)[0])
+            out_neighbors2 = set(np.where(A[node2, :] != 0)[0])
+            in_neighbors2 = set(np.where(A[:, node2] != 0)[0])
+
+            common_out_neighbors = out_neighbors1.intersection(out_neighbors2)
+            common_in_neighbors = in_neighbors1.intersection(in_neighbors2)
+
+            # Resource allocation similarity
+            ra_similarity = 0
+
+            for neighbor in common_out_neighbors:
+                degree = np.sum(np.abs(A[neighbor, :])) + np.sum(np.abs(A[:, neighbor]))
+                if degree > 0:
+                    ra_similarity += A[node1, neighbor] * A[node2, neighbor] / degree
+
+            for neighbor in common_in_neighbors:
+                degree = np.sum(np.abs(A[neighbor, :])) + np.sum(np.abs(A[:, neighbor]))
+                if degree > 0:
+                    ra_similarity += A[neighbor, node1] * A[neighbor, node2] / degree
+
+            similarity_matrix[node1, node2] = ra_similarity
+            similarity_matrix[node2, node1] = ra_similarity  # Symmetric matrix
+
+    return similarity_matrix
