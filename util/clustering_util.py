@@ -49,7 +49,7 @@ class Louvain:
         old_cluster['nodes'].remove(node)
         old_cluster['modularity'] = self.calculate_modularity(old_cluster['nodes'])
         for neighboring_cluster in list(old_cluster['neighbors'].keys()):
-            if old_cluster['neighbors'][neighboring_cluster].has(node):
+            if node in old_cluster['neighbors'][neighboring_cluster]:
                 old_cluster['neighbors'][neighboring_cluster].remove(node)
             if not old_cluster['neighbors'][neighboring_cluster]:
                 old_cluster['neighbors'].pop(neighboring_cluster)
@@ -80,10 +80,38 @@ class Louvain:
         Returns:
             float
         """
-        for node in cluster:
-            for neighbors in cluster:
-                if neighbors != node:
-                    w_out = self.A[node]
-        pass
+        A = self.A
+        N = A.shape[0]
+
+        w_plus = np.sum(A[A > 0])
+        w_minus = np.sum(A[A < 0])
+
+        if w_plus + w_minus == 0:
+            return 0  # Avoid division by zero
+
+        modularity = 0
+        for i in range(N):
+            for j in range(N):
+                if i in cluster and j in cluster:
+                    w_ij = A[i, j]
+                    k_i_out_plus = np.sum(A[i, A[i] > 0])
+                    k_j_in_plus = np.sum(A[A[:, j] > 0, j])
+                    k_i_out_minus = np.sum(A[i, A[i] < 0])
+                    k_j_in_minus = np.sum(A[A[:, j] < 0, j])
+                    
+                    if w_plus > 0:
+                        expected_positive = (k_i_out_plus * k_j_in_plus) / (2 * w_plus)
+                    else:
+                        expected_positive = 0
+                    
+                    if w_minus > 0:
+                        expected_negative = (k_i_out_minus * k_j_in_minus) / (2 * w_minus)
+                    else:
+                        expected_negative = 0
+                    
+                    modularity += w_ij - (expected_positive - expected_negative)
+
+        modularity /= (2 * w_plus + 2 * w_minus)
+        return modularity
 
 

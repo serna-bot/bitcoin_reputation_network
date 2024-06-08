@@ -12,7 +12,7 @@ def get_anomaly_metrics(clusters, A, centrality_funcs):
         array:
             1. Most negative node in cluster
             2. Fraction of negative edges out of total
-            3. Centralities
+            3. Centralities (not going to be implemented)
             4. Sum of edges
     """
     metrics = []
@@ -31,20 +31,21 @@ def get_anomaly_metrics(clusters, A, centrality_funcs):
                 sum_edges += A[i, j]
             neg_edge_frac = neg_edges / number_edges
         #3
-        centralities = {}
-        for centrality_func in centrality_funcs:
-            centralities[centrality_func.__name__] = centrality_func(A, cluster)
-        metrics.append({'min_node': min_node, 'neg_edge_frac': neg_edge_frac, 'centrality': centralities, 'sum_edges': sum_edges})
+        # centralities = {}
+        # for centrality_func in centrality_funcs:
+        #     centralities[centrality_func.__name__] = centrality_func(A, cluster)
+        # metrics.append({'min_node': min_node, 'neg_edge_frac': neg_edge_frac, 'centrality': centralities, 'sum_edges': sum_edges})
+        metrics.append({'min_node': min_node, 'neg_edge_frac': neg_edge_frac, 'sum_edges': sum_edges})
     return metrics
 
-def closeness_centrality(A, cluster):
-    pass
+# def closeness_centrality(A, cluster):
+#     pass
 
-def katz_centrality(A, cluster):
-    pass
+# def katz_centrality(A, cluster):
+#     pass
 
-def degree_centrality(A, cluster):
-    pass
+# def degree_centrality(A, cluster):
+#     pass
 
 def get_lowest_rated_nodes(A, num=-1):
     """
