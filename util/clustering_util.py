@@ -1,8 +1,51 @@
 import numpy as np
+from sklearn.cluster import SpectralClustering
+
+def calculate_modularity(A, cluster):
+        """
+        Args:
+            A (np.array): adjacency matrix
+            cluster (set): set of node indices
+        Returns:
+            float
+        """
+        N = A.shape[0]
+
+        w_plus = np.sum(A[A > 0])
+        w_minus = np.sum(A[A < 0])
+
+        if w_plus + w_minus == 0:
+            return 0  # Avoid division by zero
+
+        modularity = 0
+        for i in range(N):
+            for j in range(N):
+                if i in cluster and j in cluster:
+                    w_ij = A[i, j]
+                    k_i_out_plus = np.sum(A[i, A[i] > 0])
+                    k_j_in_plus = np.sum(A[A[:, j] > 0, j])
+                    k_i_out_minus = np.sum(A[i, A[i] < 0])
+                    k_j_in_minus = np.sum(A[A[:, j] < 0, j])
+                    
+                    if w_plus > 0:
+                        expected_positive = (k_i_out_plus * k_j_in_plus) / (2 * w_plus)
+                    else:
+                        expected_positive = 0
+                    
+                    if w_minus > 0:
+                        expected_negative = (k_i_out_minus * k_j_in_minus) / (2 * w_minus)
+                    else:
+                        expected_negative = 0
+                    
+                    modularity += w_ij - (expected_positive - expected_negative)
+
+        modularity /= (2 * w_plus + 2 * w_minus)
+        return modularity
 
 class Louvain:
     def __init__(self, A):
         self.A = A
+        self.calculate_modularity = lambda cluster: calculate_modularity(self.A, cluster)
 
         N = self.A.shape[0]
         self.clusters = [{'nodes': {n}, 'modularity': self.calculate_modularity({n}), 'neighbors': None} for n in range(N)]
@@ -39,7 +82,9 @@ class Louvain:
                     node_to_clusters[node] = node_stats['index']
             if nodes_moved < 0.1 * N:
                 break
-        return clusters
+        best_clusters = [cluster['nodes'] for cluster in clusters]
+        best_modularities = [cluster['modularity'] for cluster in clusters]
+        return best_clusters, best_modularities
 
     def move_node(self, new_cluster, old_cluster, node_stats):
         """
@@ -72,46 +117,36 @@ class Louvain:
         in_nodes = set(row)
         return out_nodes, in_nodes
         
-    def calculate_modularity(self, cluster):
-        """
-        Args:
-            A (np.array): adjacency matrix
-            cluster (set): set of node indices
-        Returns:
-            float
-        """
-        A = self.A
-        N = A.shape[0]
+class Spectral:
+    def __init__(self, A):
+        self.A = A
+        self.calculate_modularity = lambda cluster: calculate_modularity(self.A, cluster)
+    
+    def run(self, max_clusters=2, tolerance=1e-5):
+        best_modularity = -np.inf
+        best_clusters = None
+        previous_modularity = None
 
-        w_plus = np.sum(A[A > 0])
-        w_minus = np.sum(A[A < 0])
+        for num_clusters in range(2, max_clusters+1):
+            clusters = {}
+            sc = SpectralClustering(num_clusters, affinity='precomputed', n_init=100)
+            sc.fit(self.A)
+            for idx, cluster in enumerate(sc.labels_): #labels of each point
+                if cluster in clusters:
+                    clusters[cluster].add(idx)
+                else:
+                    clusters[cluster] = {idx}
+            modularities = [calculate_modularity(cluster) for cluster in clusters.values()]
+            total_modularity = sum(modularities)
+            
+            if total_modularity > best_modularity:
+                best_modularity = total_modularity
+                best_clusters = clusters
+            
+            if previous_modularity is not None and abs(total_modularity - previous_modularity) < tolerance:
+                break
 
-        if w_plus + w_minus == 0:
-            return 0  # Avoid division by zero
-
-        modularity = 0
-        for i in range(N):
-            for j in range(N):
-                if i in cluster and j in cluster:
-                    w_ij = A[i, j]
-                    k_i_out_plus = np.sum(A[i, A[i] > 0])
-                    k_j_in_plus = np.sum(A[A[:, j] > 0, j])
-                    k_i_out_minus = np.sum(A[i, A[i] < 0])
-                    k_j_in_minus = np.sum(A[A[:, j] < 0, j])
-                    
-                    if w_plus > 0:
-                        expected_positive = (k_i_out_plus * k_j_in_plus) / (2 * w_plus)
-                    else:
-                        expected_positive = 0
-                    
-                    if w_minus > 0:
-                        expected_negative = (k_i_out_minus * k_j_in_minus) / (2 * w_minus)
-                    else:
-                        expected_negative = 0
-                    
-                    modularity += w_ij - (expected_positive - expected_negative)
-
-        modularity /= (2 * w_plus + 2 * w_minus)
-        return modularity
-
+            previous_modularity = total_modularity
+        
+        return best_clusters, best_modularity
 
