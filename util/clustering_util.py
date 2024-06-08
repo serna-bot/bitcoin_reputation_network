@@ -80,13 +80,10 @@ class Louvain:
         Returns:
             float
         """
-        # for node in cluster:
-        #     for neighbors in cluster:
-        #         if neighbors != node:
-        #             w_out = self.A[node]
+        for node in cluster:
+            for neighbors in cluster:
+                if neighbors != node:
+                    w_out = self.A[node]
         pass
-
-    def prune_network(self):
-        np.nonzero(self.A)
 
 
