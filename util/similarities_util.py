@@ -3,28 +3,55 @@ from scipy.stats import pearsonr
 import igraph as ig
 import numpy as np
 import networkx as nx
+from tqdm import tqdm
+import json
 
+def save_file(S, sim_name, col):
+    f = open('paths.json')
+    data = json.load(f)
+    path  = data['result_path']
+    file_name = path + "/" + sim_name
+    if col:
+        file_name += "_col"
+    else:
+        file_name += "_row"
+    file_name += ".out"
+    np.savetxt(file_name, S, delimiter=' ')
+    print("Saved File.")
 
-def cosine_sim(A, col):
+def cosine_sim(A, col, savefile=False):
     """
     Args:
         A (np.array): adjacency matrix
         col (Boolean): whether to return column pearson sim or row pearson sim
-
+    
     Returns:
         (np.array)
     """
     N = A.shape[0]
-    S = np.zeros_like(A)
-    for i in range(N):
+    S = np.zeros_like(A)  # Initialize similarity matrix with zeros
+
+    for i in tqdm(range(N)):
         for j in range(N):
             if not col:
-                S[i, j] = np.dot(A[i,:], A[j,:]) / (np.sqrt(np.sum(np.square(A[i,:]))) * np.sqrt(np.sum(np.square(A[j,:]))))
-            else: 
-                 S[i, j] = np.dot(A[:,i], A[:,j]) / (np.sqrt(np.sum(np.square(A[:,i]))) * np.sqrt(np.sum(np.square(A[:,j]))))
+                norm_i = np.sqrt(np.sum(np.square(A[i, :])))
+                norm_j = np.sqrt(np.sum(np.square(A[j, :])))
+                if norm_i == 0 or norm_j == 0:
+                    S[i, j] = 0
+                else:
+                    S[i, j] = np.dot(A[i, :], A[j, :]) / (norm_i * norm_j)
+            else:
+                norm_i = np.sqrt(np.sum(np.square(A[:, i])))
+                norm_j = np.sqrt(np.sum(np.square(A[:, j])))
+                if norm_i == 0 or norm_j == 0:
+                    S[i, j] = 0 
+                else:
+                    S[i, j] = np.dot(A[:, i], A[:, j]) / (norm_i * norm_j)
+    if savefile:
+        save_file(S, "cosine_sim", col)
     return S
 
-def pearson_sim(A, col= False):
+def pearson_sim(A, col, savefile):
     """
     Args:
         A (np.array): adjacency matrix
@@ -33,36 +60,19 @@ def pearson_sim(A, col= False):
     Returns:
         (np.array)
     """
-    N = A.shape[0]
-    S = np.zeros_like(A)
-    for i in range(N):
-        for j in range(N):
-            if i == j:
-                S[i, j] = 1.0
-            else:
-                if not col:
-                    S[i, j] = pearsonr(A[i,:], A[j,:]).statistic
-                else: 
-                    S[i, j] = pearsonr(A[:,i], A[:,j]).statistic
+    axis = 0 if col else 1
+    row_means = np.mean(A, axis=axis)
+    centered_arr = A - row_means[:, np.newaxis]
+    covariance_matrix = np.dot(centered_arr, centered_arr.T)
+    stds = np.std(A, axis=axis)
+    std_outer_product = np.outer(stds, stds)
+    std_outer_product[std_outer_product == 0] = 1
+    S = covariance_matrix / std_outer_product
+    if savefile:
+        save_file(S, "pearson_sim", col)
     return S
 
-# def jaccard_similarity(G):
-#   nodes = list(G.nodes())
-#   jaccard_mat = np.zeros((len(nodes), len(nodes)))
-#   for i in range(len(nodes)):
-#     for j in range(len(nodes)):
-#       neighbors_i = set(G[nodes[i]])
-#       neighbors_j = set(G[nodes[j]])
-
-#       set_intersection_card = len(neighbors_i & neighbors_j)
-#       set_union_card = len(neighbors_i.union(neighbors_j))
-#       if (set_union_card == 0):
-#         set_union_card = 1
-#       jaccard_mat[i][j] = set_intersection_card/set_union_card
-
-#   return jaccard_mat
-
-def jaccard_sim(A, col):
+def jaccard_sim(A, col, savefile):
     """
     Args:
         A (np.array)
@@ -70,20 +80,21 @@ def jaccard_sim(A, col):
     """
     N = A.shape[0]
     S = np.zeros_like(A)
-    for i in range(N):
+    G = ig.Graph.Weighted_Adjacency(A)
+    g_out = 'in' if col else 'out'
+    for i in tqdm(range(N)):
         for j in range(N):
             if i == j:
                 S[i, j] = 1
             else:
-                if not col:
-                    N_i = set(np.nonzero(A[i, :])[0])
-                    N_j = set(np.nonzero(A[j, :])[0])
-                else:
-                    N_i = set(np.nonzero(A[:, i])[0])
-                    N_j = set(np.nonzero(A[:, j])[0])
-                S[i, j] = len(N_i.intersection(N_j)) / len(N_i.union(N_j))
+                N_i = set(G.neighbors(i, g_out))
+                N_j = set(G.neighbors(j, g_out))
+                S[i, j] = len(N_i.intersection(N_j)) / len(N_i.union(N_j)) if len(N_i.union(N_j)) != 0 else 1
+    if savefile:
+        save_file(S, "jaccard_sim", col)
+    return S
 
-def adamic_adar_sim(A, col):
+def adamic_adar_sim(A, col, savefile):
     """
     Args:
         A (np.array)
@@ -91,20 +102,18 @@ def adamic_adar_sim(A, col):
     """
     N = A.shape[0]
     S = np.zeros_like(A)
-    for i in range(N):
+    G = ig.Graph.Weighted_Adjacency(A)
+    g_out = 'in' if col else 'out'
+    for i in tqdm(range(N)):
         for j in range(N):
             if i == j:
                 S[i, j] = 1
             else:
-                if not col:
-                    N_i = set(np.nonzero(A[i, :])[0])
-                    N_j = set(np.nonzero(A[j, :])[0])
-                    U = N_i.intersection(N_j)
-                    for u in U:
-                        S[i, j] += 1/np.log(len(np.nonzero(A[u, :])[0]))
-                else:
-                    N_i = set(np.nonzero(A[:, i])[0])
-                    N_j = set(np.nonzero(A[:, j])[0])
-                    U = N_i.intersection(N_j)
-                    for u in U:
-                        S[i, j] += 1/np.log(len(np.nonzero(A[:, u])[0]))
+                N_i = set(G.neighbors(i, g_out))
+                N_j = set(G.neighbors(j, g_out))
+                U = N_i.intersection(N_j)
+                for u in U:
+                    S[i, j] += 1/np.log(len(G.neighbors(u, g_out))) if np.log(len(G.neighbors(u, g_out))) != 0 else 0
+    if savefile:
+        save_file(S, "adamic_adar_sim", col)
+    return S

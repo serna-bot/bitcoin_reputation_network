@@ -16,8 +16,19 @@ def loadData_iGraph(src, preprocessing=None):
     df = pd.read_csv(src)
     if preprocessing:
         df["weight"] = df['weight'].apply(preprocessing)
-    G = ig.Graph.DataFrame(df, directed=True)
-    print('iGraph Graph loaded.')
+    unique_nodes = pd.concat([df['source'], df['target']]).unique()
+    node_mapping = {old_id: new_id for new_id, old_id in enumerate(unique_nodes)}
+    
+    df['source'] = df['source'].map(node_mapping)
+    df['target'] = df['target'].map(node_mapping)
+
+    edges = list(zip(df['source'], df['target']))
+    weights = list(df['weight'])
+    
+    G = ig.Graph(edges=edges, directed=True)
+    G.es['weight'] = weights
+    
+    print(f"iGraph Graph loaded, V: {G.vcount()} E: {G.ecount()}")
     return G
     
 def loadData_networkX(src, preprocessing=None):
@@ -40,7 +51,7 @@ def loadData_networkX(src, preprocessing=None):
     weights = df.iloc[:, 0:3].to_numpy()
     G = nx.from_edgelist(edgelist_df, create_using = nx.DiGraph)
     G.add_weighted_edges_from(weights)
-    print('networkX Graph loaded.')
+    print(f"networkX Graph loaded. {G}")
     return G
 
 def shiftEdgeWeights(weight):
