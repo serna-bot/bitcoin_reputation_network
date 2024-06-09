@@ -5,9 +5,24 @@ import numpy as np
 import networkx as nx
 
 
-def cosine_sim(A):
-    cosine_similarity_matrix = cosine_similarity(A)
-    return cosine_similarity_matrix
+def cosine_sim(A, col):
+    """
+    Args:
+        A (np.array): adjacency matrix
+        col (Boolean): whether to return column pearson sim or row pearson sim
+
+    Returns:
+        (np.array)
+    """
+    N = A.shape[0]
+    S = np.zeros_like(A)
+    for i in range(N):
+        for j in range(N):
+            if not col:
+                S[i, j] = np.dot(A[i,:], A[j,:]) / (np.sqrt(np.sum(np.square(A[i,:]))) * np.sqrt(np.sum(np.square(A[j,:]))))
+            else: 
+                 S[i, j] = np.dot(A[:,i], A[:,j]) / (np.sqrt(np.sum(np.square(A[:,i]))) * np.sqrt(np.sum(np.square(A[:,j]))))
+    return S
 
 def pearson_sim(A, col= False):
     """
@@ -26,69 +41,70 @@ def pearson_sim(A, col= False):
                 S[i, j] = 1.0
             else:
                 if not col:
-                    S[i, j] = pearsonr(A[i,], A[j,]).statistic
+                    S[i, j] = pearsonr(A[i,:], A[j,:]).statistic
                 else: 
                     S[i, j] = pearsonr(A[:,i], A[:,j]).statistic
     return S
 
-def jaccard_sim(G):
+# def jaccard_similarity(G):
+#   nodes = list(G.nodes())
+#   jaccard_mat = np.zeros((len(nodes), len(nodes)))
+#   for i in range(len(nodes)):
+#     for j in range(len(nodes)):
+#       neighbors_i = set(G[nodes[i]])
+#       neighbors_j = set(G[nodes[j]])
+
+#       set_intersection_card = len(neighbors_i & neighbors_j)
+#       set_union_card = len(neighbors_i.union(neighbors_j))
+#       if (set_union_card == 0):
+#         set_union_card = 1
+#       jaccard_mat[i][j] = set_intersection_card/set_union_card
+
+#   return jaccard_mat
+
+def jaccard_sim(A, col):
     """
     Args:
-        G (ig.Graph)
-    """
-    if type(G) != ig.Graph:
-        raise TypeError("Arg must be of type ig.Graph") 
-    return np.array(G.similarity_jaccard())
-
-def adamic_adar_sim(G):
-    """
-    Args:
-        G (ig.Graph)
-    """
-    if type(G) != ig.Graph:
-        raise TypeError("Arg must be of type ig.Graph") 
-    return np.array(G.similarity_inverse_log_weighted())
-
-def dice_sim(G):
-    """
-    Args:
-        G (ig.Graph)
-    """
-    if type(G) != ig.Graph:
-        raise TypeError("Arg must be of type ig.Graph") 
-    return np.array(G.similarity_dice())
-
-def resource_allocation_sim(A):
-    """
+        A (np.array)
+        col (boolean)
     """
     N = A.shape[0]
-    similarity_matrix = np.zeros((N, N))
+    S = np.zeros_like(A)
+    for i in range(N):
+        for j in range(N):
+            if i == j:
+                S[i, j] = 1
+            else:
+                if not col:
+                    N_i = set(np.nonzero(A[i, :])[0])
+                    N_j = set(np.nonzero(A[j, :])[0])
+                else:
+                    N_i = set(np.nonzero(A[:, i])[0])
+                    N_j = set(np.nonzero(A[:, j])[0])
+                S[i, j] = len(N_i.intersection(N_j)) / len(N_i.union(N_j))
 
-    for node1 in range(N):
-        for node2 in range(node1 + 1, N):
-            # Find common neighbors
-            out_neighbors1 = set(np.where(A[node1, :] != 0)[0])
-            in_neighbors1 = set(np.where(A[:, node1] != 0)[0])
-            out_neighbors2 = set(np.where(A[node2, :] != 0)[0])
-            in_neighbors2 = set(np.where(A[:, node2] != 0)[0])
-
-            common_out_neighbors = out_neighbors1.intersection(out_neighbors2)
-            common_in_neighbors = in_neighbors1.intersection(in_neighbors2)
-
-            # Resource allocation similarity
-            ra_similarity = 0
-
-            for neighbor in common_out_neighbors:
-                degree = np.sum(np.abs(A[neighbor, :])) + np.sum(np.abs(A[:, neighbor]))
-                if degree > 0:
-                    ra_similarity += A[node1, neighbor] * A[node2, neighbor] / degree
-
-            for neighbor in common_in_neighbors:
-                degree = np.sum(np.abs(A[neighbor, :])) + np.sum(np.abs(A[:, neighbor]))
-                if degree > 0:
-                    ra_similarity += A[neighbor, node1] * A[neighbor, node2] / degree
-
-            similarity_matrix[node1, node2] = ra_similarity
-            similarity_matrix[node2, node1] = ra_similarity  # Symmetric matrix
-
-    return similarity_matrix
+def adamic_adar_sim(A, col):
+    """
+    Args:
+        A (np.array)
+        col (boolean)
+    """
+    N = A.shape[0]
+    S = np.zeros_like(A)
+    for i in range(N):
+        for j in range(N):
+            if i == j:
+                S[i, j] = 1
+            else:
+                if not col:
+                    N_i = set(np.nonzero(A[i, :])[0])
+                    N_j = set(np.nonzero(A[j, :])[0])
+                    U = N_i.intersection(N_j)
+                    for u in U:
+                        S[i, j] += 1/np.log(len(np.nonzero(A[u, :])[0]))
+                else:
+                    N_i = set(np.nonzero(A[:, i])[0])
+                    N_j = set(np.nonzero(A[:, j])[0])
+                    U = N_i.intersection(N_j)
+                    for u in U:
+                        S[i, j] += 1/np.log(len(np.nonzero(A[:, u])[0]))

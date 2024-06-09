@@ -1,63 +1,70 @@
 import numpy as np
 from sklearn.cluster import SpectralClustering
 
-def calculate_modularity(A, cluster):
-        """
-        Args:
-            A (np.array): adjacency matrix
-            cluster (set): set of node indices
-        Returns:
-            float
-        """
-        N = A.shape[0]
+def calculate_modularity(A, cluster, total_positive_weight, total_negative_weight):
+    """
+    Calculate the modularity Q_s for a given cluster in an undirected graph.
 
-        w_plus = np.sum(A[A > 0])
-        w_minus = np.sum(A[A < 0])
+    Args:
+        A (np.array): Adjacency matrix
+        cluster (set): Set of node indices representing a cluster
+        total_positive_weight (float): Total sum of positive weights in the graph
+        total_negative_weight (float): Total sum of negative weights in the graph
 
-        if w_plus + w_minus == 0:
-            return 0  # Avoid division by zero
+    Returns:
+        float: Modularity Q_s for the given cluster
+    """
+    if total_positive_weight + total_negative_weight == 0:
+        return 0  # Avoid division by zero
 
-        modularity = 0
-        for i in range(N):
-            for j in range(N):
-                if i in cluster and j in cluster:
-                    w_ij = A[i, j]
-                    k_i_out_plus = np.sum(A[i, A[i] > 0])
-                    k_j_in_plus = np.sum(A[A[:, j] > 0, j])
-                    k_i_out_minus = np.sum(A[i, A[i] < 0])
-                    k_j_in_minus = np.sum(A[A[:, j] < 0, j])
-                    
-                    if w_plus > 0:
-                        expected_positive = (k_i_out_plus * k_j_in_plus) / (2 * w_plus)
-                    else:
-                        expected_positive = 0
-                    
-                    if w_minus > 0:
-                        expected_negative = (k_i_out_minus * k_j_in_minus) / (2 * w_minus)
-                    else:
-                        expected_negative = 0
-                    
-                    modularity += w_ij - (expected_positive - expected_negative)
+    modularity = 0
+    cluster_list = list(cluster)
+    cluster_size = len(cluster_list)
 
-        modularity /= (2 * w_plus + 2 * w_minus)
-        return modularity
+    for i in range(cluster_size):
+        for j in range(cluster_size):
+            node_i = cluster_list[i]
+            node_j = cluster_list[j]
+            w_ij = A[node_i, node_j]
+            k_i_plus = np.sum(A[node_i, A[node_i] > 0])
+            k_j_plus = np.sum(A[node_j, A[node_j] > 0])
+            k_i_minus = np.sum(A[node_i, A[node_i] < 0])
+            k_j_minus = np.sum(A[node_j, A[node_j] < 0])
+
+            if total_positive_weight > 0:
+                expected_positive = (k_i_plus * k_j_plus) / (2 * total_positive_weight)
+            else:
+                expected_positive = 0
+
+            if total_negative_weight > 0:
+                expected_negative = (k_i_minus * k_j_minus) / (2 * total_negative_weight)
+            else:
+                expected_negative = 0
+
+            modularity += w_ij - (expected_positive - expected_negative)
+
+    modularity /= (2 * total_positive_weight + 2 * total_negative_weight)
+    return modularity
 
 class Louvain:
     def __init__(self, A):
         self.A = A
-        self.calculate_modularity = lambda cluster: calculate_modularity(self.A, cluster)
+        N = A.shape[0]
+        self.total_positive_weight = np.sum(A[A > 0]) / 2  # Each edge is counted twice in an undirected graph
+        self.total_negative_weight = np.sum(A[A < 0]) / 2
 
-        N = self.A.shape[0]
+        self.calculate_modularity = lambda cluster: calculate_modularity(
+            self.A, cluster, self.total_positive_weight, self.total_negative_weight)
+
         self.clusters = [{'nodes': {n}, 'modularity': self.calculate_modularity({n}), 'neighbors': None} for n in range(N)]
-        self.node_to_clusters = { n:n for n in range(N)} # to get the index of the cluster
-        #initiating neighbors
+        self.node_to_clusters = {n: n for n in range(N)}  # to get the index of the cluster
+
+        # Initiating neighbors
         for node, cluster in enumerate(self.clusters):
-            out_nodes, in_nodes = self.find_node_neighbors(self.A, node)
+            out_nodes, in_nodes = self.find_node_neighbors(node)
             cluster['neighbors'] = {neighbor: {node} for neighbor in out_nodes.union(in_nodes)}
 
     def run(self):
-        """
-        """
         clusters = self.clusters
         node_to_clusters = self.node_to_clusters
         N = self.A.shape[0]
@@ -69,7 +76,6 @@ class Louvain:
                 cluster = clusters[curr_cluster_idx]
                 node_stats = {'node': node, 'modularity': cluster['modularity'], 'index': curr_cluster_idx}
                 for neighbor in cluster['neighbors']:
-                    #move node into neighboring clusters
                     new_cluster = set(clusters[neighbor]['nodes'])
                     new_cluster.add(node)
                     new_modularity = self.calculate_modularity(new_cluster)
@@ -87,8 +93,6 @@ class Louvain:
         return best_clusters, best_modularities
 
     def move_node(self, new_cluster, old_cluster, node_stats):
-        """
-        """
         node = node_stats['node']
 
         old_cluster['nodes'].remove(node)
@@ -108,7 +112,6 @@ class Louvain:
                 new_cluster['neighbors'][neighboring_cluster] = {node}
             else:
                 new_cluster['neighbors'][neighboring_cluster].add(node)
-        
 
     def find_node_neighbors(self, node):
         col = np.nonzero(self.A[node, :])[0]
@@ -120,7 +123,10 @@ class Louvain:
 class Spectral:
     def __init__(self, A):
         self.A = A
-        self.calculate_modularity = lambda cluster: calculate_modularity(self.A, cluster)
+        self.total_positive_weight = np.sum(A[A > 0]) / 2  # Each edge is counted twice in an undirected graph
+        self.total_negative_weight = np.sum(A[A < 0]) / 2
+        self.calculate_modularity = lambda cluster: calculate_modularity(
+            self.A, cluster, self.total_positive_weight, self.total_negative_weight)
     
     def run(self, max_clusters=2, tolerance=1e-5):
         best_modularity = -np.inf
