@@ -16,12 +16,12 @@ def get_anomaly_metrics(clusters, A, centrality_funcs):
             1. Most negative node in cluster
             2. Fraction of negative edges out of total
             3. Centralities (not going to be implemented)
-            4. Sum of edges
+            4. Average rating
     """
     metrics = []
     for cluster in clusters:
-        min_node, neg_edge_frac, centralities, sum_edges = None, None, None, None
-        number_edges, neg_edges = 0, 0
+        min_node, centralities = None, None
+        number_edges, neg_edges, sum_edges, neg_edge_frac, average_rating = 0, 0, 0, 0.0, 0.0
         for i in cluster:
             #1
             sum_in_edges = np.sum(A[:, i])
@@ -33,11 +33,12 @@ def get_anomaly_metrics(clusters, A, centrality_funcs):
                 #4
                 sum_edges += A[i, j]
             neg_edge_frac = neg_edges / number_edges
+        average_rating = sum_edges / len(cluster)
         #3
         centralities = {}
         for centrality_func in centrality_funcs:
             centralities[centrality_func.__name__] = centrality_func(A, cluster)
-        metrics.append({'min_node': min_node, 'neg_edge_frac': neg_edge_frac, 'centrality': centralities, 'sum_edges': sum_edges})
+        metrics.append({'min_node': min_node, 'neg_edge_frac': neg_edge_frac, 'centrality': centralities, 'average_rating': average_rating})
     return metrics
 
 def closeness_centrality(A, cluster):
