@@ -78,18 +78,9 @@ def jaccard_sim(A, col, savefile):
         A (np.array)
         col (boolean)
     """
-    N = A.shape[0]
-    S = np.zeros_like(A)
     G = ig.Graph.Weighted_Adjacency(A)
     g_out = 'in' if col else 'out'
-    for i in tqdm(range(N)):
-        for j in range(N):
-            if i == j:
-                S[i, j] = 1
-            else:
-                N_i = set(G.neighbors(i, g_out))
-                N_j = set(G.neighbors(j, g_out))
-                S[i, j] = len(N_i.intersection(N_j)) / len(N_i.union(N_j)) if len(N_i.union(N_j)) != 0 else 1
+    S = np.array(G.similarity_jaccard(mode=g_out))
     if savefile:
         save_file(S, "jaccard_sim", col)
     return S
@@ -100,20 +91,9 @@ def adamic_adar_sim(A, col, savefile):
         A (np.array)
         col (boolean)
     """
-    N = A.shape[0]
-    S = np.zeros_like(A)
     G = ig.Graph.Weighted_Adjacency(A)
     g_out = 'in' if col else 'out'
-    for i in tqdm(range(N)):
-        for j in range(N):
-            if i == j:
-                S[i, j] = 1
-            else:
-                N_i = set(G.neighbors(i, g_out))
-                N_j = set(G.neighbors(j, g_out))
-                U = N_i.intersection(N_j)
-                for u in U:
-                    S[i, j] += 1/np.log(len(G.neighbors(u, g_out))) if np.log(len(G.neighbors(u, g_out))) != 0 else 0
+    S = np.array(G.similarity_inverse_log_weighted(mode=g_out))
     if savefile:
         save_file(S, "adamic_adar_sim", col)
     return S
